@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terminfindung – Stützpunktfeuerwehr Meilen</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --red:#CC0000;--red-dark:#990000;--red-light:#FDEAEA;
+  --black:#1a1a1a;--gray:#666;--gray-mid:#e0e0e0;
+  --green:#2d6a1f;--green-light:#eaf3e6;--orange:#cc7700;--orange-light:#fdf3e5;
+  --bg:#fff;--bg2:#f4f4f4;--bg3:#e8e8e8;
+  --text:#1a1a1a;--text2:#555;--text3:#888;
+}
+body{font-family:'Open Sans',Arial,sans-serif;background:var(--bg3);color:var(--text);min-height:100vh;font-size:14px;}
+.site-header{background:var(--black);}
+.site-header-inner{max-width:1000px;margin:0 auto;padding:0 1rem;display:flex;align-items:center;height:54px;gap:12px;}
+.logo-text{color:#fff;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;line-height:1.2;}
+.logo-text span{display:block;font-size:10px;font-weight:400;color:#999;text-transform:none;letter-spacing:0;}
+.red-stripe{height:4px;background:var(--red);}
+.page{max-width:1000px;margin:0 auto;padding:1.25rem 1rem 4rem;}
+.card{background:var(--bg);border:1px solid var(--gray-mid);border-top:3px solid var(--red);padding:1.25rem;margin-bottom:1rem;}
+.card h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;}
+.sub{color:var(--text2);font-size:13px;line-height:1.6;}
+label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);margin:0 0 5px;}
+input[type=text],select{width:100%;padding:11px;border:1px solid var(--gray-mid);font-size:16px;font-family:inherit;border-radius:0;background:var(--bg);}
+input:focus,select:focus{outline:none;border-color:var(--black);}
+.btn{height:44px;padding:0 18px;border:2px solid var(--black);background:var(--bg);color:var(--black);font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;}
+.btn:hover{background:var(--black);color:#fff;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn-red{background:var(--red);color:#fff;border-color:var(--red);}
+.btn-red:hover{background:var(--red-dark);border-color:var(--red-dark);}
+.btn-klein{height:34px;padding:0 13px;font-size:11px;}
+.status-msg{font-size:13px;font-weight:600;margin-top:10px;padding:9px 12px;display:none;}
+.status-msg.ok-msg{display:block;background:var(--green-light);color:var(--green);border-left:3px solid var(--green);}
+.status-msg.err-msg{display:block;background:var(--red-light);color:var(--red-dark);border-left:3px solid var(--red);}
+
+.kuerzel-leiste{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.kuerzel-aktiv{font-size:17px;font-weight:700;background:var(--bg2);border:2px solid var(--black);padding:6px 16px;letter-spacing:.06em;}
+
+.monat{margin-bottom:1.5rem;}
+.monat-titel{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--black);
+  border-bottom:2px solid var(--red);padding-bottom:5px;margin-bottom:10px;}
+.tage{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:10px;}
+.tag{background:var(--bg);border:1px solid var(--gray-mid);border-left:4px solid var(--gray-mid);}
+.tag.erfuellt{border-left-color:var(--green);}
+.tag.definitiv{border-left-color:var(--red);background:var(--red-light);}
+.tag-kopf{padding:.7rem .9rem;border-bottom:1px solid var(--gray-mid);}
+.tag-wochentag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray);}
+.tag-datum{font-size:16px;font-weight:700;}
+.tag-zeit{font-size:11px;color:var(--text3);margin-top:2px;}
+.slots{padding:.7rem .9rem;}
+.slot-titel{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray);
+  display:flex;justify-content:space-between;margin-bottom:5px;}
+.slot-zeile{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px;min-height:22px;}
+.person{font-size:11px;font-weight:700;background:var(--bg2);border:1px solid var(--gray-mid);padding:2px 8px;}
+.person.ich{background:var(--black);color:#fff;border-color:var(--black);}
+.person.leer{background:transparent;border-style:dashed;color:var(--text3);font-weight:400;}
+.aktionen{display:flex;gap:6px;padding:0 .9rem .8rem;}
+.aktionen .btn{flex:1;}
+.badge{display:inline-block;padding:2px 9px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.05em;}
+.def-block{margin:0 .9rem .8rem;background:var(--bg);border:1px solid var(--red);padding:.6rem .8rem;}
+.def-titel{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--red);margin-bottom:4px;}
+.leer-hinweis{background:var(--bg);border:1px dashed var(--gray-mid);padding:2.5rem 1rem;text-align:center;color:var(--text3);font-size:13px;}
+.laden{padding:2.5rem 1rem;text-align:center;color:var(--text3);font-size:13px;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:none;align-items:center;justify-content:center;padding:1.25rem;}
+.modal{background:#fff;max-width:390px;width:100%;padding:1.5rem;border-top:4px solid var(--red);}
+.modal h3{font-size:15px;margin-bottom:.6rem;}
+.modal p{font-size:13px;color:var(--text2);line-height:1.6;}
+.site-footer{background:var(--black);color:#888;font-size:11px;text-align:center;padding:1rem;}
+</style>
+</head>
+<body>
+
+<div class="site-header">
+  <div class="site-header-inner">
+    <img src="https://www.feuerwehr-meilen.ch/fileadmin/Public/Website/Templates/Images/Logo-FeuerwehrMeilen.png" alt="Stützpunktfeuerwehr Meilen" style="height:38px;width:auto;object-fit:contain;">
+    <div class="logo-text">Stützpunktfeuerwehr Meilen<span>Terminfindung Ausbildungen</span></div>
+  </div>
+</div>
+<div class="red-stripe"></div>
+
+<div class="page">
+
+  <!-- Kürzel -->
+  <div class="card">
+    <h2>Dein Kürzel</h2>
+    <div id="kuerzel-eingabe">
+      <p class="sub" style="margin-bottom:.9rem">
+        Trage dein Kürzel ein, danach kannst du dich für Termine an- und abmelden.
+      </p>
+      <div class="kuerzel-leiste">
+        <input type="text" id="f-kuerzel" maxlength="4" style="max-width:150px;text-transform:uppercase"
+          autocomplete="off" placeholder="z. B. LOL" onkeydown="if(event.key==='Enter')kuerzelSetzen()">
+        <button class="btn btn-red" onclick="kuerzelSetzen()">Übernehmen</button>
+      </div>
+    </div>
+    <div id="kuerzel-gesetzt" style="display:none">
+      <div class="kuerzel-leiste">
+        <span class="kuerzel-aktiv" id="anzeige-kuerzel">–</span>
+        <span class="sub" id="anzeige-name"></span>
+        <button class="btn btn-klein" onclick="kuerzelAendern()">Ändern</button>
+      </div>
+    </div>
+    <div class="status-msg" id="kuerzel-status"></div>
+  </div>
+
+  <!-- Ausbildung -->
+  <div class="card" id="auswahl-karte" style="display:none">
+    <h2>Ausbildung</h2>
+    <select id="f-ausbildung" onchange="ausbildungGewaehlt()"></select>
+    <p class="sub" id="ausbildung-info" style="margin-top:.75rem"></p>
+  </div>
+
+  <div id="inhalt"><div class="laden">Wird geladen …</div></div>
+</div>
+
+<!-- Kürzel unbekannt -->
+<div class="overlay" id="warn-bg">
+  <div class="modal">
+    <h3>Kürzel nicht gefunden</h3>
+    <p id="warn-text"></p>
+    <div style="display:flex;gap:10px;margin-top:1.25rem">
+      <button class="btn" style="flex:1" onclick="warnZurueck()">Zurück</button>
+      <button class="btn btn-red" style="flex:1" onclick="warnWeiter()">Trotzdem</button>
+    </div>
+  </div>
+</div>
+
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.00</div>
+
+<script>
+const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
+const VERSION="CLv1.00";
+const SPEICHER="uebungsfindung_kuerzel";
+
+let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], BESTAETIGT=false, WARTET=null;
+
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+async function ruf(payload,versuch){
+  versuch=versuch||1;
+  const res=await fetch(EXEC_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body:JSON.stringify(payload)});
+  const text=await res.text();
+  try{ return JSON.parse(text); }
+  catch(e){
+    if(text.trim().startsWith("<")&&versuch<3){
+      await new Promise(r=>setTimeout(r,600*versuch));
+      return ruf(payload,versuch+1);
+    }
+    throw new Error("Server nicht erreichbar. Bitte kurz warten und erneut versuchen.");
+  }
+}
+
+/* ── Kürzel ── */
+function kuerzelSetzen(){
+  const k=$("f-kuerzel").value.trim().toUpperCase();
+  const st=$("kuerzel-status");
+  if(!k){ st.className="status-msg err-msg"; st.textContent="Bitte ein Kürzel eingeben."; return; }
+  KUERZEL=k;
+  try{ localStorage.setItem(SPEICHER,k); }catch(e){}
+  st.style.display="none";
+  $("kuerzel-eingabe").style.display="none";
+  $("kuerzel-gesetzt").style.display="block";
+  $("anzeige-kuerzel").textContent=k;
+  rendern();
+}
+
+function kuerzelAendern(){
+  $("kuerzel-eingabe").style.display="block";
+  $("kuerzel-gesetzt").style.display="none";
+  $("f-kuerzel").value=KUERZEL;
+  $("f-kuerzel").focus();
+}
+
+/* ── Laden ── */
+async function start(){
+  try{ KUERZEL=localStorage.getItem(SPEICHER)||""; }catch(e){}
+  if(KUERZEL){
+    $("kuerzel-eingabe").style.display="none";
+    $("kuerzel-gesetzt").style.display="block";
+    $("anzeige-kuerzel").textContent=KUERZEL;
+  }
+  try{
+    const r=await ruf({type:"tf_lade"});
+    if(!r.ok){ $("inhalt").innerHTML='<div class="leer-hinweis">Die Ausbildungen konnten nicht geladen werden.</div>'; return; }
+    AUSBILDUNGEN=r.ausbildungen||[];
+    if(AUSBILDUNGEN.length===0){
+      $("inhalt").innerHTML='<div class="leer-hinweis">Zurzeit ist keine Ausbildung zur Terminfindung offen.</div>';
+      return;
+    }
+    if(AUSBILDUNGEN.length>1){
+      $("auswahl-karte").style.display="block";
+      $("f-ausbildung").innerHTML=AUSBILDUNGEN.map(a=>
+        `<option value="${esc(a.id)}">${esc(a.name)}${a.status==="geschlossen"?" (abgeschlossen)":""}</option>`).join("");
+    }
+    ladeAusbildung(AUSBILDUNGEN[0].id);
+  }catch(e){
+    $("inhalt").innerHTML=`<div class="leer-hinweis">${esc(e.message)}</div>`;
+  }
+}
+
+function ausbildungGewaehlt(){ ladeAusbildung($("f-ausbildung").value); }
+
+async function ladeAusbildung(id){
+  $("inhalt").innerHTML='<div class="laden">Wird geladen …</div>';
+  try{
+    const r=await ruf({type:"tf_lade",ausbildung:id});
+    if(!r.ok){ $("inhalt").innerHTML='<div class="leer-hinweis">Diese Ausbildung ist nicht verfügbar.</div>'; return; }
+    AKTUELL=r.ausbildung; TERMINE=r.termine||[];
+    const info=$("ausbildung-info");
+    const teile=[];
+    if(AKTUELL.beschreibung) teile.push(esc(AKTUELL.beschreibung));
+    teile.push(`Benötigt: ${AKTUELL.minTeilnehmer} Teilnehmer und ${AKTUELL.minAusbildner} Ausbildner · `
+      +`Plätze: ${AKTUELL.maxTeilnehmer} / ${AKTUELL.maxAusbildner}`);
+    if(AKTUELL.fahrzeug) teile.push(`Fahrzeug: ${esc(AKTUELL.fahrzeug)}`);
+    info.innerHTML=teile.join("<br>");
+    rendern();
+  }catch(e){ $("inhalt").innerHTML=`<div class="leer-hinweis">${esc(e.message)}</div>`; }
+}
+
+/* ── Darstellung ── */
+function rendern(){
+  const el=$("inhalt");
+  if(!AKTUELL) return;
+  const geschlossen=(AKTUELL.status||"offen")==="geschlossen";
+
+  if(TERMINE.length===0){
+    el.innerHTML=`<div class="leer-hinweis">${geschlossen
+      ? "Für diese Ausbildung steht noch kein definitiver Termin fest."
+      : "Für diese Ausbildung sind noch keine Termine erfasst."}</div>`;
+    return;
+  }
+
+  let html="";
+  if(geschlossen){
+    html+=`<div class="card" style="border-top-color:var(--green)">
+      <h2>Termin steht fest</h2>
+      <p class="sub">Die Terminfindung ist abgeschlossen. Unten siehst du die festgelegten Termine.</p>
+    </div>`;
+  } else if(!KUERZEL){
+    html+=`<div class="card" style="border-top-color:var(--orange)">
+      <p class="sub">Trage oben dein Kürzel ein, um dich für Termine einzutragen.</p>
+    </div>`;
+  }
+
+  // Nach Monat gruppieren
+  const monate={};
+  TERMINE.forEach(t=>{
+    const m=t.datum.slice(0,7);
+    (monate[m]=monate[m]||[]).push(t);
+  });
+  const namen=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+
+  Object.keys(monate).sort().forEach(m=>{
+    const [jahr,mon]=m.split("-");
+    html+=`<div class="monat">
+      <div class="monat-titel">${namen[parseInt(mon,10)-1]} ${jahr}</div>
+      <div class="tage">${monate[m].map(tagKachel).join("")}</div>
+    </div>`;
+  });
+  el.innerHTML=html;
+}
+
+function tagKachel(t){
+  const geschlossen=(AKTUELL.status||"offen")==="geschlossen";
+  const istDef=t.definitiv.length>0;
+  const klassen=["tag"];
+  if(istDef) klassen.push("definitiv");
+  else if(t.erfuellt) klassen.push("erfuellt");
+
+  const slots=(titel,liste,max,min)=>{
+    const frei=Math.max(0,max-liste.length);
+    const genug=liste.length>=min;
+    return `<div class="slot-titel">
+        <span>${titel}</span>
+        <span style="color:${genug?"var(--green)":"var(--orange)"}">${liste.length} / ${max}</span>
+      </div>
+      <div class="slot-zeile">
+        ${liste.map(k=>`<span class="person${k===KUERZEL?" ich":""}">${esc(k)}</span>`).join("")}
+        ${Array(frei).fill('<span class="person leer">frei</span>').join("")}
+      </div>`;
+  };
+
+  let h=`<div class="${klassen.join(" ")}" id="tag-${esc(t.id)}">
+    <div class="tag-kopf">
+      <div class="tag-wochentag">${esc(t.wochentag)}</div>
+      <div class="tag-datum">${esc(t.datumAnzeige)}</div>
+      ${t.von?`<div class="tag-zeit">${esc(t.von)}${t.bis?" – "+esc(t.bis):""}</div>`:""}
+      ${t.bemerkung?`<div class="tag-zeit">${esc(t.bemerkung)}</div>`:""}
+    </div>
+    <div class="slots">
+      ${slots("Teilnehmer",t.teilnehmer,AKTUELL.maxTeilnehmer,AKTUELL.minTeilnehmer)}
+      ${slots("Ausbildner",t.ausbildner,AKTUELL.maxAusbildner,AKTUELL.minAusbildner)}
+    </div>`;
+
+  if(istDef){
+    h+=`<div class="def-block">
+      <div class="def-titel">Definitive Ausbildner</div>
+      <div class="slot-zeile" style="margin-bottom:0">
+        ${t.definitiv.map(k=>`<span class="person${k===KUERZEL?" ich":""}">${esc(k)}</span>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  if(!geschlossen){
+    const drinT=t.teilnehmer.indexOf(KUERZEL)>=0;
+    const drinA=t.ausbildner.indexOf(KUERZEL)>=0;
+    h+=`<div class="aktionen">
+      <button class="btn btn-klein${drinT?" btn-red":""}" ${KUERZEL?"":"disabled"}
+        onclick="anmelden('${esc(t.id)}','teilnehmer',this)">${drinT?"✓ Teilnehmer":"Teilnehmer"}</button>
+      <button class="btn btn-klein${drinA?" btn-red":""}" ${KUERZEL?"":"disabled"}
+        onclick="anmelden('${esc(t.id)}','ausbildner',this)">${drinA?"✓ Ausbildner":"Ausbildner"}</button>
+    </div>`;
+  }
+  return h+"</div>";
+}
+
+/* ── An- und Abmelden ── */
+async function anmelden(terminId,rolle,btn){
+  if(!KUERZEL) return;
+  const alt=btn.textContent;
+  btn.disabled=true; btn.textContent="…";
+  try{
+    const r=await ruf({type:"tf_anmelden",terminId,rolle,kuerzel:KUERZEL,kuerzelBestaetigt:BESTAETIGT});
+    if(r.ok){
+      const i=TERMINE.findIndex(t=>t.id===terminId);
+      if(i>=0) TERMINE[i]=r.termin;
+      rendern();
+      return;
+    }
+    if(r.error==="KUERZEL_UNBEKANNT"){
+      WARTET={terminId,rolle};
+      $("warn-text").textContent=`Das Kürzel „${KUERZEL}" steht nicht in der Mitgliederliste. Trotzdem eintragen?`;
+      $("warn-bg").style.display="flex";
+    } else if(r.error==="VOLL"){
+      meldung(`Für diesen Termin sind bereits ${r.max} Personen eingetragen.`);
+    } else if(r.error==="GESCHLOSSEN"){
+      meldung("Die Terminfindung ist bereits abgeschlossen.");
+      ladeAusbildung(AKTUELL.id);
+    } else if(r.error==="BESETZT"){
+      meldung("Gerade trägt sich jemand anderes ein. Bitte kurz warten und nochmals versuchen.");
+    } else {
+      meldung("Das hat nicht geklappt. Bitte nochmals versuchen.");
+    }
+    btn.textContent=alt; btn.disabled=false;
+  }catch(e){
+    meldung(e.message);
+    btn.textContent=alt; btn.disabled=false;
+  }
+}
+
+function meldung(text){
+  const st=$("kuerzel-status");
+  st.className="status-msg err-msg"; st.textContent=text;
+  window.scrollTo({top:0,behavior:"smooth"});
+  setTimeout(()=>{ st.style.display="none"; },6000);
+}
+
+function warnZurueck(){ $("warn-bg").style.display="none"; WARTET=null; }
+function warnWeiter(){
+  $("warn-bg").style.display="none";
+  BESTAETIGT=true;
+  if(WARTET){
+    const w=WARTET; WARTET=null;
+    const btn=document.querySelector(`#tag-${CSS.escape(w.terminId)} .aktionen button`);
+    anmelden(w.terminId,w.rolle,btn||document.createElement("button"));
+  }
+}
+
+start();
+</script>
+</body>
+</html>
