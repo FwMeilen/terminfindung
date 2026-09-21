@@ -151,11 +151,109 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.03</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.04</div>
 
 <script>
+/* ── Netzwerk: geduldige Wiederholung (gemeinsam für alle MWD-Seiten) ──
+ * Google liefert gelegentlich eine Fehlerseite statt Daten, vor allem beim
+ * Kaltstart. fwAufruf() wiederholt dann mit wachsenden Pausen (bis ca. 15 s),
+ * zeigt «Server startet …» und fragt erst danach, ob erneut versucht werden soll.
+ * Jeder Aufruf erhält eine Kennung, damit eine Wiederholung auf dem Server
+ * nichts doppelt schreibt. Wiederholungen werden fürs Aussetzer-Protokoll gemeldet.
+ */
+(function(){
+  const PAUSEN=[0,1000,2000,4000,8000];
+  const MELDE_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
+  let aktiv=0, entscheid=null;
+
+  function banner(){
+    let b=document.getElementById("fw-netz-banner");
+    if(!b){
+      b=document.createElement("div");
+      b.id="fw-netz-banner";
+      b.style.cssText="position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;max-width:92vw;"
+        +"color:#fff;font:600 13px 'Open Sans',Arial,sans-serif;padding:11px 16px;"
+        +"box-shadow:0 4px 18px rgba(0,0,0,.25);display:none;align-items:center;gap:12px;flex-wrap:wrap";
+      document.body.appendChild(b);
+    }
+    return b;
+  }
+  function zeigeWarten(){
+    if(entscheid) return;
+    const b=banner(); b.style.background="#1a1a1a";
+    b.textContent="⏳ Server startet, einen Moment …";
+    b.style.display="flex";
+  }
+  function verstecke(){
+    if(aktiv<=0&&!entscheid){ const b=document.getElementById("fw-netz-banner"); if(b) b.style.display="none"; }
+  }
+  function frageNochmals(){
+    if(entscheid) return entscheid;
+    entscheid=new Promise(resolve=>{
+      const b=banner(); b.style.background="#990000"; b.innerHTML="";
+      const t=document.createElement("span"); t.textContent="Server nicht erreichbar."; b.appendChild(t);
+      const knopf=(text,wert)=>{
+        const x=document.createElement("button"); x.textContent=text; x.type="button";
+        x.style.cssText="font:700 11px 'Open Sans',Arial,sans-serif;text-transform:uppercase;letter-spacing:.05em;"
+          +"padding:7px 12px;border:2px solid #fff;cursor:pointer;background:"+(wert?"#fff":"transparent")
+          +";color:"+(wert?"#990000":"#fff");
+        x.onclick=()=>{ entscheid=null; b.style.display="none"; resolve(wert); };
+        b.appendChild(x);
+      };
+      knopf("Erneut versuchen",true); knopf("Schliessen",false);
+      b.style.display="flex";
+    });
+    return entscheid;
+  }
+  function melden(d){
+    try{
+      fetch(MELDE_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
+        body:JSON.stringify(Object.assign({type:"aussetzer_melden"},d))}).catch(()=>{});
+    }catch(e){}
+  }
+
+  /**
+   * @param url     Adresse des Apps Script
+   * @param payload Daten (Objekt)
+   * @param opts    {seite:"Name fürs Protokoll", still:true für Hintergrundaufrufe ohne Anzeige}
+   */
+  window.fwAufruf=async function(url,payload,opts){
+    opts=opts||{};
+    payload=Object.assign({},payload);
+    if(!payload.anfrageId) payload.anfrageId=Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,10);
+    const body=JSON.stringify(payload);
+    const aufruf=payload.type||payload.action||"";
+    const start=Date.now();
+    let versuche=0, zeigt=false;
+    while(true){
+      for(let i=0;i<PAUSEN.length;i++){
+        if(PAUSEN[i]) await new Promise(r=>setTimeout(r,PAUSEN[i]));
+        versuche++;
+        try{
+          const res=await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body});
+          const text=await res.text();
+          try{
+            const daten=JSON.parse(text);
+            if(zeigt){ aktiv--; verstecke(); }
+            if(versuche>1) melden({seite:opts.seite||location.hostname,aufruf,versuche,dauerMs:Date.now()-start,erfolg:true});
+            return daten;
+          }catch(e){ console.warn("Keine gültige Antwort (Versuch "+versuche+"):",text.slice(0,200)); }
+        }catch(e){ console.warn("Netzwerkfehler (Versuch "+versuche+"):",e&&e.message); }
+        if(!zeigt&&!opts.still){ zeigt=true; aktiv++; zeigeWarten(); }
+      }
+      if(zeigt){ aktiv--; zeigt=false; }
+      melden({seite:opts.seite||location.hostname,aufruf,versuche,dauerMs:Date.now()-start,erfolg:false});
+      if(opts.still){ verstecke(); throw new Error("Server nicht erreichbar."); }
+      const nochmals=await frageNochmals();
+      if(!nochmals){ verstecke(); throw new Error("Server nicht erreichbar. Bitte später erneut versuchen."); }
+      zeigt=true; aktiv++; zeigeWarten();
+    }
+  };
+})();
+</script>
+<script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.03";
+const VERSION="CLv1.04";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -163,19 +261,8 @@ let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 
-async function ruf(payload,versuch){
-  versuch=versuch||1;
-  const res=await fetch(EXEC_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
-    body:JSON.stringify(payload)});
-  const text=await res.text();
-  try{ return JSON.parse(text); }
-  catch(e){
-    if(text.trim().startsWith("<")&&versuch<3){
-      await new Promise(r=>setTimeout(r,600*versuch));
-      return ruf(payload,versuch+1);
-    }
-    throw new Error("Server nicht erreichbar. Bitte kurz warten und erneut versuchen.");
-  }
+async function ruf(payload,opts){
+  return fwAufruf(EXEC_URL, payload, Object.assign({seite:"Terminfindung"}, opts||{}));
 }
 
 /* ── Kürzel ── */
@@ -408,7 +495,7 @@ async function anmelden(terminId,rolle,btn){
       if(i>=0) TERMINE[i]=r.termin;
       rendern();
       // Fortschritt kann sich geändert haben – im Hintergrund auffrischen
-      ruf({type:"tf_lade",ausbildung:AKTUELL.id,kuerzel:KUERZEL})
+      ruf({type:"tf_lade",ausbildung:AKTUELL.id,kuerzel:KUERZEL},{still:true})
         .then(x=>{ if(x&&x.ok) zeigeFortschritt(x.fortschritt); }).catch(()=>{});
       return;
     }
