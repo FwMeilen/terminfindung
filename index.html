@@ -75,9 +75,6 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 .fs-balken{height:8px;background:var(--gray-mid);}
 .fs-fill{height:8px;background:var(--orange);transition:width .3s;}
 .fs-fill.voll{background:var(--green);}
-.kal-knoepfe{display:flex;gap:8px;flex-wrap:wrap;margin-top:.75rem;}
-.kal-hinweis{font-size:11px;color:var(--text3);line-height:1.6;margin-top:.75rem;}
-.kal-hinweis summary{cursor:pointer;font-weight:600;color:var(--text2);}
 .site-footer{background:var(--black);color:#888;font-size:11px;text-align:center;padding:1rem;}
 </style>
 </head>
@@ -126,21 +123,17 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 
   <div class="card" id="kalender-karte" style="display:none">
     <h2>Meine Termine in den Kalender</h2>
-    <p class="sub">Alle Termine, bei denen du eingetragen bist. Noch nicht festgelegte erscheinen als «vorläufig».</p>
-    <div class="kal-knoepfe">
+    <div style="display:flex;gap:8px;margin-top:.75rem;flex-wrap:wrap">
+      <input type="text" id="kal-link" readonly onclick="this.select()"
+        style="flex:1;min-width:220px;font-size:12px;background:var(--bg2)">
+      <button class="btn btn-klein" onclick="kalLinkKopieren()">Link kopieren</button>
       <a class="btn btn-red btn-klein" id="kal-abo" href="#">Abonnieren</a>
-      <a class="btn btn-klein" id="kal-google" href="#" target="_blank" rel="noopener">In Google Kalender</a>
-      <a class="btn btn-klein" id="kal-download" href="#">Einmal herunterladen</a>
     </div>
-    <details class="kal-hinweis">
-      <summary>Was ist der Unterschied?</summary>
-      <p style="margin-top:6px"><b>Abonnieren</b> – dein Kalender holt die Termine selbst immer wieder neu.
-      Trägst du dich aus oder wird ein Termin festgelegt, ändert sich der Eintrag automatisch.
-      Wie oft nachgeschaut wird, bestimmt deine Kalender-App: Apple und Outlook meist stündlich bis täglich,
-      Google Kalender nur alle 12 bis 24 Stunden.</p>
-      <p style="margin-top:6px"><b>Einmal herunterladen</b> – eine Momentaufnahme. Spätere Änderungen erscheinen nicht.</p>
-      <p style="margin-top:6px">Der Abo-Link ist persönlich – bitte nicht weitergeben.</p>
-    </details>
+    <div class="status-msg" id="kal-status"></div>
+    <p class="sub" style="font-size:12px;margin-top:.75rem">
+      Alle Termine, bei denen du eingetragen bist, erscheinen in deinem Kalender –
+      noch offene als «vorläufig», festgelegte als fix. Änderungen werden automatisch übernommen.
+    </p>
   </div>
 
   <div id="inhalt"><div class="laden">Wird geladen …</div></div>
@@ -158,11 +151,11 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.02</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.03</div>
 
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.02";
+const VERSION="CLv1.03";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -292,9 +285,18 @@ function zeigeKalender(k){
   const karte=$("kalender-karte");
   if(!k||!KUERZEL){ karte.style.display="none"; return; }
   karte.style.display="block";
+  $("kal-link").value=k.https;
   $("kal-abo").href=k.abo;
-  $("kal-download").href=k.download;
-  $("kal-google").href="https://calendar.google.com/calendar/r?cid="+encodeURIComponent(k.abo);
+  $("kal-status").style.display="none";
+}
+
+function kalLinkKopieren(){
+  const feld=$("kal-link"), st=$("kal-status");
+  feld.select();
+  const ok=()=>{ st.className="status-msg ok-msg"; st.textContent="Link kopiert – jetzt in deiner Kalender-App als Abo einfügen."; };
+  const fehler=()=>{ st.className="status-msg err-msg"; st.textContent="Kopieren nicht möglich – bitte den Link markieren und von Hand kopieren."; };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(feld.value).then(ok).catch(fehler);
+  else { try{ document.execCommand("copy"); ok(); }catch(e){ fehler(); } }
 }
 
 /* ── Darstellung ── */
