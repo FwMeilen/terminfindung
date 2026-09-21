@@ -110,7 +110,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 
   <!-- Ausbildung -->
   <div class="card" id="auswahl-karte" style="display:none">
-    <h2>Ausbildung</h2>
+    <h2 id="auswahl-titel">Ausbildung</h2>
     <select id="f-ausbildung" onchange="ausbildungGewaehlt()"></select>
     <p class="sub" id="ausbildung-info" style="margin-top:.75rem"></p>
   </div>
@@ -130,14 +130,14 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.00</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.01</div>
 
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.00";
+const VERSION="CLv1.01";
 const SPEICHER="uebungsfindung_kuerzel";
 
-let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], BESTAETIGT=false, WARTET=null;
+let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
 
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
@@ -168,7 +168,8 @@ function kuerzelSetzen(){
   $("kuerzel-eingabe").style.display="none";
   $("kuerzel-gesetzt").style.display="block";
   $("anzeige-kuerzel").textContent=k;
-  rendern();
+  BESTAETIGT=false;
+  ladeListe();
 }
 
 function kuerzelAendern(){
@@ -186,12 +187,24 @@ async function start(){
     $("kuerzel-gesetzt").style.display="block";
     $("anzeige-kuerzel").textContent=KUERZEL;
   }
+  ladeListe();
+}
+
+/** Ausbildungen laden, bei denen das eingegebene Kürzel eine Rolle hat */
+async function ladeListe(){
+  AKTUELL=null; TERMINE=[];
+  $("auswahl-karte").style.display="none";
+  if(!KUERZEL){
+    $("inhalt").innerHTML='<div class="leer-hinweis">Trage oben dein Kürzel ein – dann erscheinen die Ausbildungen, für die du vorgesehen bist.</div>';
+    return;
+  }
+  $("inhalt").innerHTML='<div class="laden">Wird geladen …</div>';
   try{
-    const r=await ruf({type:"tf_lade"});
+    const r=await ruf({type:"tf_lade",kuerzel:KUERZEL});
     if(!r.ok){ $("inhalt").innerHTML='<div class="leer-hinweis">Die Ausbildungen konnten nicht geladen werden.</div>'; return; }
     AUSBILDUNGEN=r.ausbildungen||[];
     if(AUSBILDUNGEN.length===0){
-      $("inhalt").innerHTML='<div class="leer-hinweis">Zurzeit ist keine Ausbildung zur Terminfindung offen.</div>';
+      $("inhalt").innerHTML=`<div class="leer-hinweis">Für ${esc(KUERZEL)} ist zurzeit keine Ausbildung offen.</div>`;
       return;
     }
     if(AUSBILDUNGEN.length>1){
@@ -210,16 +223,22 @@ function ausbildungGewaehlt(){ ladeAusbildung($("f-ausbildung").value); }
 async function ladeAusbildung(id){
   $("inhalt").innerHTML='<div class="laden">Wird geladen …</div>';
   try{
-    const r=await ruf({type:"tf_lade",ausbildung:id});
+    const r=await ruf({type:"tf_lade",ausbildung:id,kuerzel:KUERZEL});
     if(!r.ok){ $("inhalt").innerHTML='<div class="leer-hinweis">Diese Ausbildung ist nicht verfügbar.</div>'; return; }
-    AKTUELL=r.ausbildung; TERMINE=r.termine||[];
+    AKTUELL=r.ausbildung; TERMINE=r.termine||[]; ROLLEN=r.rollen||[];
     const info=$("ausbildung-info");
     const teile=[];
     if(AKTUELL.beschreibung) teile.push(esc(AKTUELL.beschreibung));
     teile.push(`Benötigt: ${AKTUELL.minTeilnehmer} Teilnehmer und ${AKTUELL.minAusbildner} Ausbildner · `
       +`Plätze: ${AKTUELL.maxTeilnehmer} / ${AKTUELL.maxAusbildner}`);
     if(AKTUELL.fahrzeug) teile.push(`Fahrzeug: ${esc(AKTUELL.fahrzeug)}`);
+    const rollenText=ROLLEN.map(r=>r==="teilnehmer"?"Teilnehmer":"Ausbildner").join(" und ");
+    if(rollenText) teile.push(`Du bist vorgesehen als: <b>${rollenText}</b>`);
     info.innerHTML=teile.join("<br>");
+    $("auswahl-karte").style.display="block";
+    $("f-ausbildung").style.display = AUSBILDUNGEN.length>1 ? "block" : "none";
+    const titel=$("auswahl-titel");
+    if(titel) titel.textContent = AUSBILDUNGEN.length>1 ? "Ausbildung" : AKTUELL.name;
     rendern();
   }catch(e){ $("inhalt").innerHTML=`<div class="leer-hinweis">${esc(e.message)}</div>`; }
 }
@@ -311,12 +330,12 @@ function tagKachel(t){
   if(!geschlossen){
     const drinT=t.teilnehmer.indexOf(KUERZEL)>=0;
     const drinA=t.ausbildner.indexOf(KUERZEL)>=0;
-    h+=`<div class="aktionen">
-      <button class="btn btn-klein${drinT?" btn-red":""}" ${KUERZEL?"":"disabled"}
-        onclick="anmelden('${esc(t.id)}','teilnehmer',this)">${drinT?"✓ Teilnehmer":"Teilnehmer"}</button>
-      <button class="btn btn-klein${drinA?" btn-red":""}" ${KUERZEL?"":"disabled"}
-        onclick="anmelden('${esc(t.id)}','ausbildner',this)">${drinA?"✓ Ausbildner":"Ausbildner"}</button>
-    </div>`;
+    const knoepfe=[];
+    if(ROLLEN.indexOf("teilnehmer")>=0) knoepfe.push(`<button class="btn btn-klein${drinT?" btn-red":""}"
+        onclick="anmelden('${esc(t.id)}','teilnehmer',this)">${drinT?"✓ Teilnehmer":"Teilnehmer"}</button>`);
+    if(ROLLEN.indexOf("ausbildner")>=0) knoepfe.push(`<button class="btn btn-klein${drinA?" btn-red":""}"
+        onclick="anmelden('${esc(t.id)}','ausbildner',this)">${drinA?"✓ Ausbildner":"Ausbildner"}</button>`);
+    if(knoepfe.length) h+=`<div class="aktionen">${knoepfe.join("")}</div>`;
   }
   return h+"</div>";
 }
@@ -343,6 +362,8 @@ async function anmelden(terminId,rolle,btn){
     } else if(r.error==="GESCHLOSSEN"){
       meldung("Die Terminfindung ist bereits abgeschlossen.");
       ladeAusbildung(AKTUELL.id);
+    } else if(r.error==="ROLLE_NICHT_VORGESEHEN"){
+      meldung("Für diese Rolle bist du bei dieser Ausbildung nicht vorgesehen.");
     } else if(r.error==="BESETZT"){
       meldung("Gerade trägt sich jemand anderes ein. Bitte kurz warten und nochmals versuchen.");
     } else {
