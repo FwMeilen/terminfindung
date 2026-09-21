@@ -90,6 +90,22 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 
 <div class="page">
 
+  <!-- Anleitung -->
+  <div class="card" style="border-top-color:var(--gray-mid)">
+    <details id="anleitung">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 0">So funktioniert's</summary>
+      <ol style="margin:.75rem 0 0 1.2rem;font-size:13px;color:var(--text2);line-height:1.8">
+        <li><b>Kürzel eingeben</b> – danach siehst du die Ausbildungen, für die du vorgesehen bist.</li>
+        <li><b>Bei allen Terminen eintragen, an denen du kannst</b> – als Teilnehmer oder Ausbildner.
+          Ein zweiter Klick trägt dich wieder aus. Je mehr Termine, desto leichter findet sich ein passender.</li>
+        <li><b>Grüner Rand</b> = genügend Leute beisammen. Der Balken zeigt, wie viele der benötigten Termine schon gefunden sind.</li>
+        <li><b>Festgelegt</b> werden die Termine vom Ausbildungsverantwortlichen – du erhältst dann eine Mail.</li>
+        <li><b>Tipp:</b> Unten «Meine Termine in den Kalender» abonnieren. Dein Kalender aktualisiert sich dann von selbst,
+          auch wenn Termine festgelegt werden.</li>
+      </ol>
+    </details>
+  </div>
+
   <!-- Kürzel -->
   <div class="card">
     <h2>Dein Kürzel</h2>
@@ -151,7 +167,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.05</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.06</div>
 
 <script>
 /* ── Netzwerk-Baustein für alle MWD-Seiten ──
@@ -289,7 +305,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 </script>
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.05";
+const VERSION="CLv1.06";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -326,6 +342,7 @@ function kuerzelAendern(){
 /* ── Laden ── */
 async function start(){
   try{ KUERZEL=localStorage.getItem(SPEICHER)||""; }catch(e){}
+  $("anleitung").open = !KUERZEL;
   if(KUERZEL){
     $("kuerzel-eingabe").style.display="none";
     $("kuerzel-gesetzt").style.display="block";
