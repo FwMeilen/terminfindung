@@ -174,10 +174,13 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.10</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.11</div>
 
 <script>
-/* ── Netzwerk-Baustein für alle MWD-Seiten (Stand CLv1.72) ──
+/* ── Netzwerk-Baustein für alle MWD-Seiten (Stand W1.00) ──
+ * Seit dem Umbau läuft jeder Aufruf zuerst zum neuen Server (Cloudflare-Worker).
+ * Kennt er einen Aufruf noch nicht («NICHT_HIER»), geht er einmalig ans alte
+ * Apps Script – so wird Tool für Tool umgestellt, ohne dass etwas ausfällt.
  * Google antwortet manchmal sofort, manchmal hängt eine Anfrage oder liefert eine
  * Fehlerseite. Seit CLv1.72:
  *  - Aufrufe gehen wieder direkt an Google. Der Umweg über den Cloudflare-Worker
@@ -199,7 +202,9 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   const MAX_VERSUCHE=4;           // inkl. Neustarts nach Fehlerantworten
   const HOECHSTENS=50000;         // danach aufgeben und fragen
   const HINWEIS_NACH=8000;
-  const WORKER="";   // Worker-Umweg ausgeschaltet (siehe oben)
+  const API="https://mwd-api.stuetzpunktfeuerwehrmeilen.workers.dev";   // neuer Server
+  const ALT={};      // Aufrufe, die noch das alte Apps Script beantwortet
+  const WORKER="";   // alter Zwischenhalter, nicht mehr verwendet
   const MELDE_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
   let aktiv=0, entscheid=null, workerOk=null;   // null = unbekannt, false = nicht nutzen
   const LANGSAM_MS=5000, PUFFER="mwd_messung", ZAEHLER="mwd_messzaehler";
@@ -354,7 +359,9 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
     const body=JSON.stringify(payload);
     const aufruf=payload.type||payload.action||"";
     while(true){
-      const r=await runde(url,body,opts,aufruf);
+      const neu=API&&aufruf&&!ALT[aufruf]&&url.indexOf("script.google.com")>=0;
+      const r=await runde(neu?API:url,body,opts,aufruf);
+      if(r.ok&&r.daten&&r.daten.error==="NICHT_HIER"&&neu){ ALT[aufruf]=true; continue; }
       if(r.ok) return r.daten;
       if(opts.still) throw new Error("Server nicht erreichbar.");
       const nochmals=await frageNochmals();
@@ -365,7 +372,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 </script>
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.10";
+const VERSION="CLv1.11";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -560,7 +567,7 @@ function tagKachel(t){
   if(istDef) klassen.push("definitiv");
   else if(t.erfuellt) klassen.push("erfuellt");
 
-  // Festgelegt: Ausbildner, die nicht bestimmt wurden, erscheinen ausgegraut (seit CLv1.10)
+  // Festgelegt: Ausbildner, die nicht bestimmt wurden, erscheinen ausgegraut (seit CLv1.11)
   const slots=(titel,liste,max,min,nurDiese)=>{
     const frei=Math.max(0,max-liste.length);
     const genug=liste.length>=min;
