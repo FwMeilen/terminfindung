@@ -58,6 +58,8 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 .slot-zeile{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px;min-height:22px;}
 .person{font-size:11px;font-weight:700;background:var(--bg2);border:1px solid var(--gray-mid);padding:2px 8px;}
 .person.ich{background:var(--black);color:#fff;border-color:var(--black);}
+.person.aus{opacity:.35;}
+.def-band{background:var(--red);color:#fff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:4px .9rem;}
 .person.leer{background:transparent;border-style:dashed;color:var(--text3);font-weight:400;}
 .aktionen{display:flex;gap:6px;padding:0 .9rem .8rem;}
 .aktionen .btn{flex:1;}
@@ -172,7 +174,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.08</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.09</div>
 
 <script>
 /* ── Netzwerk-Baustein für alle MWD-Seiten (Stand CLv1.72) ──
@@ -325,7 +327,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 </script>
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.08";
+const VERSION="CLv1.09";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -520,7 +522,8 @@ function tagKachel(t){
   if(istDef) klassen.push("definitiv");
   else if(t.erfuellt) klassen.push("erfuellt");
 
-  const slots=(titel,liste,max,min)=>{
+  // Festgelegt: Ausbildner, die nicht bestimmt wurden, erscheinen ausgegraut (seit CLv1.09)
+  const slots=(titel,liste,max,min,nurDiese)=>{
     const frei=Math.max(0,max-liste.length);
     const genug=liste.length>=min;
     return `<div class="slot-titel">
@@ -528,12 +531,13 @@ function tagKachel(t){
         <span style="color:${genug?"var(--green)":"var(--orange)"}">${liste.length} / ${max}</span>
       </div>
       <div class="slot-zeile">
-        ${liste.map(k=>`<span class="person${k===KUERZEL?" ich":""}">${esc(k)}</span>`).join("")}
-        ${Array(frei).fill('<span class="person leer">frei</span>').join("")}
+        ${liste.map(k=>`<span class="person${k===KUERZEL?" ich":""}${nurDiese&&nurDiese.indexOf(k)<0?" aus":""}"${nurDiese&&nurDiese.indexOf(k)<0?' title="nicht festgelegt"':""}>${esc(k)}</span>`).join("")}
+        ${nurDiese?"":Array(frei).fill('<span class="person leer">frei</span>').join("")}
       </div>`;
   };
 
   let h=`<div class="${klassen.join(" ")}" id="tag-${esc(t.id)}">
+    ${istDef?'<div class="def-band">Definitiver Termin</div>':""}
     <div class="tag-kopf">
       <div class="tag-wochentag">${esc(t.wochentag)}</div>
       <div class="tag-datum">${esc(t.datumAnzeige)}</div>
@@ -542,17 +546,9 @@ function tagKachel(t){
     </div>
     <div class="slots">
       ${slots("Teilnehmer",t.teilnehmer,AKTUELL.maxTeilnehmer,AKTUELL.minTeilnehmer)}
-      ${slots("Ausbildner",t.ausbildner,AKTUELL.maxAusbildner,AKTUELL.minAusbildner)}
+      ${slots("Ausbildner",istDef?t.ausbildner.concat(t.definitiv.filter(k=>t.ausbildner.indexOf(k)<0)):t.ausbildner,
+        AKTUELL.maxAusbildner,AKTUELL.minAusbildner,istDef?t.definitiv:null)}
     </div>`;
-
-  if(istDef){
-    h+=`<div class="def-block">
-      <div class="def-titel">Definitive Ausbildner</div>
-      <div class="slot-zeile" style="margin-bottom:0">
-        ${t.definitiv.map(k=>`<span class="person${k===KUERZEL?" ich":""}">${esc(k)}</span>`).join("")}
-      </div>
-    </div>`;
-  }
 
   if(!geschlossen){
     const drinT=t.teilnehmer.indexOf(KUERZEL)>=0;
