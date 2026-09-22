@@ -167,26 +167,32 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.06</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.07</div>
 
 <script>
-/* ── Netzwerk-Baustein für alle MWD-Seiten ──
- * Google antwortet manchmal sofort, manchmal hängt eine Anfrage 30 Sekunden
- * oder liefert eine Fehlerseite. Deshalb:
- *  - Kommt nach 4 s keine Antwort, geht dieselbe Anfrage ein zweites Mal los
- *    (danach nach 9, 16, 25 s). Die erste gültige Antwort gewinnt.
- *  - Scheitert eine Anfrage (Fehlerseite), startet sofort die nächste.
- *  - Nach 3 s erscheint «Server braucht gerade länger …».
- *  - Nach 45 s ohne Erfolg: «Server nicht erreichbar» mit «Erneut versuchen».
- * Alle Anfragen tragen dieselbe Kennung – der Server führt Schreibvorgänge
- * dadurch nur einmal aus. Mehrfachanfragen werden fürs Aussetzer-Protokoll gemeldet.
+/* ── Netzwerk-Baustein für alle MWD-Seiten (Stand CLv1.69) ──
+ * Google antwortet manchmal sofort, manchmal hängt eine Anfrage oder liefert eine
+ * Fehlerseite. Seit CLv1.69:
+ *  - Aufrufe laufen über den MWD-Worker (Cloudflare). Er fragt bei Googles Fehlern
+ *    selbst sofort nach und hält öffentliche Lesedaten zwischengespeichert.
+ *    Antwortet der Worker nicht (oder ist er noch die alte Version W2), geht der
+ *    Aufruf direkt an Google.
+ *  - Höchstens 2 Anfragen gleichzeitig (vorher bis 5): die zweite nach 15 s,
+ *    und zwar direkt an Google. Nach einer Fehlerantwort startet sofort die nächste,
+ *    insgesamt höchstens 4.
+ *  - «Server braucht gerade länger …» erst nach 8 s (vorher 3 s).
+ *  - Nach 50 s ohne Erfolg: «Server nicht erreichbar» mit «Erneut versuchen».
+ * Alle Anfragen tragen dieselbe Kennung – der Server führt Schreibvorgänge nur
+ * einmal aus. Mehrfachanfragen werden fürs Aussetzer-Protokoll gemeldet.
  */
 (function(){
-  const NACHFRAGEN=[0,4000,9000,16000,25000];  // Startzeitpunkte der Anfragen
-  const HOECHSTENS=45000;                         // danach aufgeben und fragen
-  const HINWEIS_NACH=3000;
+  const NACHFRAGEN=[0,15000];     // geplante Startzeitpunkte
+  const MAX_VERSUCHE=4;           // inkl. Neustarts nach Fehlerantworten
+  const HOECHSTENS=50000;         // danach aufgeben und fragen
+  const HINWEIS_NACH=8000;
+  const WORKER="https://cal.stuetzpunktfeuerwehrmeilen.workers.dev/api";
   const MELDE_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-  let aktiv=0, entscheid=null;
+  let aktiv=0, entscheid=null, workerOk=null;   // null = unbekannt, false = nicht nutzen
 
   function banner(){
     let b=document.getElementById("fw-netz-banner");
@@ -239,10 +245,11 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
     try{ return JSON.parse(t); }catch(e){ return null; }
   }
 
-  /** Eine Runde: Anfragen gestaffelt starten, erste gültige Antwort gewinnt */
+  /** Eine Runde: erste Anfrage (Worker), nach 15 s eine zweite (direkt), erste gültige Antwort gewinnt */
   function runde(url,body,opts,aufruf){
     return new Promise(resolve=>{
       const start=Date.now();
+      const plan=opts.nachfragen||NACHFRAGEN;
       let gestartet=0, offen=0, fertig=false, zeigt=false;
       const abbrecher=[], uhren=[];
       const ende=(ok,daten)=>{
@@ -257,27 +264,37 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
       };
       const starte=()=>{
         if(fertig) return;
-        if(gestartet>=NACHFRAGEN.length){ if(offen===0) ende(false); return; }
+        if(gestartet>=MAX_VERSUCHE){ if(offen===0) ende(false); return; }
         gestartet++; offen++;
+        // 1., 3. Versuch über den Worker, 2., 4. direkt an Google (falls der Worker selbst klemmt)
+        const ueberWorker=workerOk!==false && gestartet%2===1 && url.indexOf("script.google.com")>=0;
+        const ziel=ueberWorker?WORKER:url;
         const a=new AbortController(); abbrecher.push(a);
-        fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body,signal:a.signal})
-          .then(r=>r.text())
+        fetch(ziel,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body,signal:a.signal})
+          .then(r=>{
+            // Alte Worker-Version (W2) oder falscher Pfad → Worker nicht mehr verwenden
+            if(ueberWorker && (r.status===404||r.status===405)){ workerOk=false; gestartet--; }
+            return r.text();
+          })
           .then(text=>{
             offen--;
             if(fertig) return;
             const daten=lesen(text);
             if(daten && daten.error!=="BESCHAEFTIGT") return ende(true,daten);
-            if(!daten) console.warn("Keine gültige Antwort:",String(text).slice(0,160));
-            if(offen===0) uhren.push(setTimeout(starte,700));
+            if(!daten) console.warn("Keine gültige Antwort ("+(ueberWorker?"Worker":"Google")+"):",String(text).slice(0,120));
+            if(offen===0) uhren.push(setTimeout(starte,workerOk===false&&ueberWorker?0:700));
           })
           .catch(e=>{
             offen--;
             if(fertig) return;
-            if(offen===0) uhren.push(setTimeout(starte,700));
+            // Worker gar nicht erreichbar (oder alte Version ohne CORS) → sofort direkt an Google
+            let sofort=false;
+            if(ueberWorker && e && e.name!=="AbortError" && workerOk===null){ workerOk=false; gestartet--; sofort=true; }
+            if(offen===0) uhren.push(setTimeout(starte,sofort?0:700));
           });
       };
-      NACHFRAGEN.forEach(t=>uhren.push(setTimeout(starte,t)));
-      if(!opts.still) uhren.push(setTimeout(()=>{ if(!fertig){ zeigt=true; aktiv++; zeigeWarten(); } },HINWEIS_NACH));
+      plan.forEach(t=>uhren.push(setTimeout(starte,t)));
+      if(!opts.still) uhren.push(setTimeout(()=>{ if(!fertig){ zeigt=true; aktiv++; zeigeWarten(); } },opts.hinweisNach||HINWEIS_NACH));
       uhren.push(setTimeout(()=>ende(false),HOECHSTENS));
     });
   }
@@ -305,7 +322,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 </script>
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.06";
+const VERSION="CLv1.07";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -555,8 +572,9 @@ async function anmelden(terminId,rolle,btn){
       const i=TERMINE.findIndex(t=>t.id===terminId);
       if(i>=0) TERMINE[i]=r.termin;
       rendern();
-      // Fortschritt kann sich geändert haben – im Hintergrund auffrischen
-      ruf({type:"tf_lade",ausbildung:AKTUELL.id,kuerzel:KUERZEL},{still:true})
+      // Fortschritt liefert der Server seit CLv1.69 gleich mit – sonst im Hintergrund nachladen
+      if(r.fortschritt) zeigeFortschritt(r.fortschritt);
+      else ruf({type:"tf_lade",ausbildung:AKTUELL.id,kuerzel:KUERZEL},{still:true})
         .then(x=>{ if(x&&x.ok) zeigeFortschritt(x.fortschritt); }).catch(()=>{});
       return;
     }
