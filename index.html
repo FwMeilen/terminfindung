@@ -174,7 +174,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.09</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.10</div>
 
 <script>
 /* ── Netzwerk-Baustein für alle MWD-Seiten (Stand CLv1.72) ──
@@ -185,6 +185,10 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
  *    der Worker dient nur noch den Kalender-Abos.
  *  - Höchstens 2 Anfragen gleichzeitig: die zweite nach 8 s. Nach einer
  *    Fehlerantwort startet sofort die nächste, insgesamt höchstens 4.
+ *  - Doppelmessung (seit CLv1.73): Jeder Aufruf wird gemessen und gezählt. Langsame
+ *    (über 5 s) und fehlgeschlagene kommen mit Gesamt- und Serverzeit (_serverMs) in
+ *    einen Puffer im Browser. Gemeldet wird gebündelt, sobald Google wieder antwortet,
+ *    spätestens beim nächsten Seitenaufruf – nie während eines Ausfalls.
  *  - «Server braucht gerade länger …» erst nach 8 s (vorher 3 s).
  *  - Nach 50 s ohne Erfolg: «Server nicht erreichbar» mit «Erneut versuchen».
  * Alle Anfragen tragen dieselbe Kennung – der Server führt Schreibvorgänge nur
@@ -198,6 +202,8 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   const WORKER="";   // Worker-Umweg ausgeschaltet (siehe oben)
   const MELDE_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
   let aktiv=0, entscheid=null, workerOk=null;   // null = unbekannt, false = nicht nutzen
+  const LANGSAM_MS=5000, PUFFER="mwd_messung", ZAEHLER="mwd_messzaehler";
+  let seiteName="", letztesMelden=0, meldetGerade=false;
 
   function banner(){
     let b=document.getElementById("fw-netz-banner");
@@ -238,12 +244,44 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
     });
     return entscheid;
   }
-  function melden(d){
-    try{
-      fetch(MELDE_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body:JSON.stringify(Object.assign({type:"aussetzer_melden"},d))}).catch(()=>{});
-    }catch(e){}
+  /* ── Doppelmessung: Puffer und Zähler im Browser ── */
+  function lies(k,leer){ try{ return JSON.parse(localStorage.getItem(k)||"null")||leer; }catch(e){ return leer; } }
+  function schreib(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+  function erfassen(seite,aufruf,totalMs,daten,versuche,ok){
+    if(!aufruf||aufruf==="messung_melden"||aufruf==="aussetzer_melden") return;
+    seiteName=seite||seiteName;
+    const z=lies(ZAEHLER,{}); const k=(seite||"")+"|"+aufruf;
+    z[k]=z[k]||{n:0,schnell:0}; z[k].n++; if(ok&&totalMs<LANGSAM_MS) z[k].schnell++; schreib(ZAEHLER,z);
+    if(ok&&totalMs<LANGSAM_MS) return;
+    const p=lies(PUFFER,[]);
+    if(p.length<200) p.push({zeit:Date.now(),seite,aufruf,totalMs,versuche,erfolg:ok,
+      serverMs:daten&&typeof daten._serverMs==="number"?daten._serverMs:null,rid:daten&&daten._rid||""});
+    schreib(PUFFER,p);
   }
+  /** Gebündelt melden – nur nach einem erfolgreichen Aufruf, höchstens alle 30 s */
+  function melden(sofort){
+    if(meldetGerade) return;
+    if(!sofort&&Date.now()-letztesMelden<30000) return;
+    const p=lies(PUFFER,[]), z=lies(ZAEHLER,{});
+    if(!p.length&&!Object.keys(z).length) return;
+    const proSeite={};
+    Object.keys(z).forEach(k=>{ const i=k.indexOf("|"), s=k.slice(0,i)||seiteName||location.hostname;
+      (proSeite[s]=proSeite[s]||{})[k.slice(i+1)]=z[k]; });
+    const seiten=Object.keys(proSeite); if(!seiten.length) seiten.push(seiteName||location.hostname);
+    meldetGerade=true; letztesMelden=Date.now();
+    schreib(PUFFER,[]); schreib(ZAEHLER,{});
+    const a=new AbortController(); const uhr=setTimeout(()=>a.abort(),15000);
+    Promise.all(seiten.map((s,i)=>fetch(MELDE_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},signal:a.signal,
+      body:JSON.stringify({type:"messung_melden",seite:s,eintraege:i===0?p:[],zaehler:proSeite[s]||{}})}).then(r=>r.text())))
+      .then(()=>{ clearTimeout(uhr); meldetGerade=false; })
+      .catch(()=>{ clearTimeout(uhr); meldetGerade=false;
+        // nicht angekommen → zurück in den Puffer (neue Einträge bleiben erhalten)
+        const p2=lies(PUFFER,[]); schreib(PUFFER,p.concat(p2).slice(-200));
+        const z2=lies(ZAEHLER,{}); Object.keys(z).forEach(k=>{ z2[k]=z2[k]||{n:0,schnell:0}; z2[k].n+=z[k].n; z2[k].schnell+=z[k].schnell; });
+        schreib(ZAEHLER,z2); });
+  }
+  // Beim Seitenaufruf Liegengebliebenes melden (etwas verzögert, nicht im Weg der ersten Aufrufe)
+  setTimeout(()=>melden(true),6000);
   function lesen(text){
     const t=String(text||"").trim();
     if(t==="ok") return {ok:true};   // ältere Server-Versionen
@@ -263,8 +301,8 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
         uhren.forEach(clearTimeout);
         abbrecher.forEach(a=>{ try{ a.abort(); }catch(e){} });
         if(zeigt){ aktiv--; verstecke(); }
-        if(gestartet>1||!ok) melden({seite:opts.seite||location.hostname,aufruf,
-          versuche:gestartet,dauerMs:Date.now()-start,erfolg:ok});
+        erfassen(opts.seite||location.hostname,aufruf,Date.now()-start,daten,gestartet,ok);
+        if(ok) setTimeout(()=>melden(false),1500);
         resolve({ok,daten});
       };
       const starte=()=>{
@@ -327,7 +365,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 </script>
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.09";
+const VERSION="CLv1.10";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -522,7 +560,7 @@ function tagKachel(t){
   if(istDef) klassen.push("definitiv");
   else if(t.erfuellt) klassen.push("erfuellt");
 
-  // Festgelegt: Ausbildner, die nicht bestimmt wurden, erscheinen ausgegraut (seit CLv1.09)
+  // Festgelegt: Ausbildner, die nicht bestimmt wurden, erscheinen ausgegraut (seit CLv1.10)
   const slots=(titel,liste,max,min,nurDiese)=>{
     const frei=Math.max(0,max-liste.length);
     const genug=liste.length>=min;
