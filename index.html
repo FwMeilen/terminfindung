@@ -100,8 +100,9 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
           Ein zweiter Klick trägt dich wieder aus. Je mehr Termine, desto leichter findet sich ein passender.</li>
         <li><b>Grüner Rand</b> = genügend Leute beisammen. Der Balken zeigt, wie viele der benötigten Termine schon gefunden sind.</li>
         <li><b>Festgelegt</b> werden die Termine vom Ausbildungsverantwortlichen – du erhältst dann eine Mail.</li>
-        <li><b>Tipp:</b> Unten «Meine Termine in den Kalender» abonnieren. Dein Kalender aktualisiert sich dann von selbst,
-          auch wenn Termine festgelegt werden.</li>
+        <li><b>Tipp:</b> Oben «Meine Termine in den Kalender» abonnieren – ein Kalender für alle Terminfindungen.
+          Er aktualisiert sich von selbst: Neue Einträge kommen dazu, und sobald die nötigen Termine gefunden und festgelegt sind,
+          verschwinden die vorläufigen automatisch.</li>
       </ol>
     </details>
   </div>
@@ -129,27 +130,31 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
     <div class="status-msg" id="kuerzel-status"></div>
   </div>
 
+  <!-- Kalender-Abo (seit CLv1.08 direkt unter dem Kürzel, einklappbar) -->
+  <div class="card" id="kalender-karte" style="display:none">
+    <details id="kal-details" ontoggle="try{localStorage.setItem('tf_kal_offen',this.open?'1':'0')}catch(e){}">
+      <summary style="cursor:pointer;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 0">Meine Termine in den Kalender</summary>
+      <div style="display:flex;gap:8px;margin-top:.75rem;flex-wrap:wrap">
+        <input type="text" id="kal-link" readonly onclick="this.select()"
+          style="flex:1;min-width:220px;font-size:12px;background:var(--bg2)">
+        <button class="btn btn-klein" onclick="kalLinkKopieren()">Link kopieren</button>
+        <a class="btn btn-red btn-klein" id="kal-abo" href="#">Abonnieren</a>
+      </div>
+      <div class="status-msg" id="kal-status"></div>
+      <p class="sub" style="font-size:12px;margin-top:.75rem">
+        Alle Termine aus allen Terminfindungen, bei denen du eingetragen bist – offene als «vorläufig», festgelegte als fix.
+        Sind die nötigen Termine festgelegt, werden die vorläufigen automatisch entfernt.
+        Je nach Kalender-App dauert die Aktualisierung einige Stunden (Google Kalender bis zu einem Tag).
+      </p>
+    </details>
+  </div>
+
   <!-- Ausbildung -->
   <div class="card" id="auswahl-karte" style="display:none">
     <h2 id="auswahl-titel">Ausbildung</h2>
     <select id="f-ausbildung" onchange="ausbildungGewaehlt()"></select>
     <p class="sub" id="ausbildung-info" style="margin-top:.75rem"></p>
     <div id="fortschritt"></div>
-  </div>
-
-  <div class="card" id="kalender-karte" style="display:none">
-    <h2>Meine Termine in den Kalender</h2>
-    <div style="display:flex;gap:8px;margin-top:.75rem;flex-wrap:wrap">
-      <input type="text" id="kal-link" readonly onclick="this.select()"
-        style="flex:1;min-width:220px;font-size:12px;background:var(--bg2)">
-      <button class="btn btn-klein" onclick="kalLinkKopieren()">Link kopieren</button>
-      <a class="btn btn-red btn-klein" id="kal-abo" href="#">Abonnieren</a>
-    </div>
-    <div class="status-msg" id="kal-status"></div>
-    <p class="sub" style="font-size:12px;margin-top:.75rem">
-      Alle Termine, bei denen du eingetragen bist, erscheinen in deinem Kalender –
-      noch offene als «vorläufig», festgelegte als fix. Änderungen werden automatisch übernommen.
-    </p>
   </div>
 
   <div id="inhalt"><div class="laden">Wird geladen …</div></div>
@@ -167,30 +172,28 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
   </div>
 </div>
 
-<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.07</div>
+<div class="site-footer">© Stützpunktfeuerwehr Meilen / LOL &nbsp;·&nbsp; CLv1.08</div>
 
 <script>
-/* ── Netzwerk-Baustein für alle MWD-Seiten (Stand CLv1.69) ──
+/* ── Netzwerk-Baustein für alle MWD-Seiten (Stand CLv1.72) ──
  * Google antwortet manchmal sofort, manchmal hängt eine Anfrage oder liefert eine
- * Fehlerseite. Seit CLv1.69:
- *  - Aufrufe laufen über den MWD-Worker (Cloudflare). Er fragt bei Googles Fehlern
- *    selbst sofort nach und hält öffentliche Lesedaten zwischengespeichert.
- *    Antwortet der Worker nicht (oder ist er noch die alte Version W2), geht der
- *    Aufruf direkt an Google.
- *  - Höchstens 2 Anfragen gleichzeitig (vorher bis 5): die zweite nach 15 s,
- *    und zwar direkt an Google. Nach einer Fehlerantwort startet sofort die nächste,
- *    insgesamt höchstens 4.
+ * Fehlerseite. Seit CLv1.72:
+ *  - Aufrufe gehen wieder direkt an Google. Der Umweg über den Cloudflare-Worker
+ *    (CLv1.69–1.71) war gemessen deutlich langsamer (10–47 s statt 1–2 s);
+ *    der Worker dient nur noch den Kalender-Abos.
+ *  - Höchstens 2 Anfragen gleichzeitig: die zweite nach 8 s. Nach einer
+ *    Fehlerantwort startet sofort die nächste, insgesamt höchstens 4.
  *  - «Server braucht gerade länger …» erst nach 8 s (vorher 3 s).
  *  - Nach 50 s ohne Erfolg: «Server nicht erreichbar» mit «Erneut versuchen».
  * Alle Anfragen tragen dieselbe Kennung – der Server führt Schreibvorgänge nur
  * einmal aus. Mehrfachanfragen werden fürs Aussetzer-Protokoll gemeldet.
  */
 (function(){
-  const NACHFRAGEN=[0,15000];     // geplante Startzeitpunkte
+  const NACHFRAGEN=[0,8000];      // geplante Startzeitpunkte
   const MAX_VERSUCHE=4;           // inkl. Neustarts nach Fehlerantworten
   const HOECHSTENS=50000;         // danach aufgeben und fragen
   const HINWEIS_NACH=8000;
-  const WORKER="https://cal.stuetzpunktfeuerwehrmeilen.workers.dev/api";
+  const WORKER="";   // Worker-Umweg ausgeschaltet (siehe oben)
   const MELDE_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
   let aktiv=0, entscheid=null, workerOk=null;   // null = unbekannt, false = nicht nutzen
 
@@ -245,7 +248,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
     try{ return JSON.parse(t); }catch(e){ return null; }
   }
 
-  /** Eine Runde: erste Anfrage (Worker), nach 15 s eine zweite (direkt), erste gültige Antwort gewinnt */
+  /** Eine Runde: erste Anfrage sofort, nach 8 s eine zweite, erste gültige Antwort gewinnt */
   function runde(url,body,opts,aufruf){
     return new Promise(resolve=>{
       const start=Date.now();
@@ -267,7 +270,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
         if(gestartet>=MAX_VERSUCHE){ if(offen===0) ende(false); return; }
         gestartet++; offen++;
         // 1., 3. Versuch über den Worker, 2., 4. direkt an Google (falls der Worker selbst klemmt)
-        const ueberWorker=workerOk!==false && gestartet%2===1 && url.indexOf("script.google.com")>=0;
+        const ueberWorker=!!WORKER && workerOk!==false && gestartet%2===1 && url.indexOf("script.google.com")>=0;
         const ziel=ueberWorker?WORKER:url;
         const a=new AbortController(); abbrecher.push(a);
         fetch(ziel,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body,signal:a.signal})
@@ -322,7 +325,7 @@ input:focus,select:focus{outline:none;border-color:var(--black);}
 </script>
 <script>
 const EXEC_URL="https://script.google.com/macros/s/AKfycbwvTL3yecdyTvSV5ZPgGslm5K-3UFjW9zc4A2qn_zUk50CcSIpXEaBE1hMiaU3GnNEQ/exec";
-const VERSION="CLv1.07";
+const VERSION="CLv1.08";
 const SPEICHER="uebungsfindung_kuerzel";
 
 let KUERZEL="", AUSBILDUNGEN=[], AKTUELL=null, TERMINE=[], ROLLEN=[], BESTAETIGT=false, WARTET=null;
@@ -333,6 +336,9 @@ function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"
 async function ruf(payload,opts){
   return fwAufruf(EXEC_URL, payload, Object.assign({seite:"Terminfindung"}, opts||{}));
 }
+
+/* ── Kalender-Karte: zugeklappt, ausser man hat sie einmal geöffnet ── */
+try{ if(localStorage.getItem("tf_kal_offen")==="1") document.getElementById("kal-details").open=true; }catch(e){}
 
 /* ── Kürzel ── */
 function kuerzelSetzen(){
